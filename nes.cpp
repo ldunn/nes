@@ -28,14 +28,9 @@ class CPU
 
         void update_lda_flags()
         {
-            if (regs[Reg::A] == 0)
-            {
-                flags[Flag::Zero] = 1;
-            }
-            if(std::bitset<8>(regs[Reg::A])[7] == 1)
-            {
-                flags[Flag::Negative] = 1;
-            }
+            flags[Flag::Zero] = regs[Reg::A] == 0;
+            flags[Flag::Negative] = std::bitset<8>(regs[Reg::A])[7] == 1;
+            
         }
 
         void update_adc_flags(unsigned int result)
@@ -44,6 +39,12 @@ class CPU
             flags[Flag::Zero] = regs[Reg::A]== 0;
             flags[Flag::Overflow] = ~(regs[Reg::A] ^ read_memory(regs[Reg::PC] + 1)) & (regs[Reg::A] ^ result) & 0x80; // ???
             flags[Flag::Negative] = std::bitset<8>(regs[Reg::A])[7] == 1;            
+        }
+
+        void update_and_flags()
+        {
+            flags[Flag::Zero] = regs[Reg::A] == 0;
+            flags[Flag::Negative] = std::bitset<8>(regs[Reg::A])[7] == 1;
         }
 
         void do_cycle()
@@ -57,7 +58,7 @@ class CPU
                 case 0xA9: // LDA IMMEDIATE
                     if(clocks_remain < 0)
                         clocks_remain = 1;
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
                         regs[Reg::A] = read_memory(regs[Reg::PC] + 1);
                         regs[Reg::PC] += 2;
@@ -67,7 +68,7 @@ class CPU
                 case 0xA5: // LDA ZERO PAGE
                     if(clocks_remain < 0)
                         clocks_remain = 2;
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
                         regs[Reg::A] = read_memory(read_memory(regs[Reg::PC] + 1));
                         regs[Reg::PC] += 2;
@@ -78,7 +79,7 @@ class CPU
                 case 0xB5: // LDA ZERO PAGE,X
                     if(clocks_remain < 0)
                         clocks_remain = 3;
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
                         regs[Reg::A] = read_memory((read_memory(regs[Reg::PC]+1) + regs[Reg::X]) % 255);
                         regs[Reg::PC] += 2;
@@ -88,9 +89,9 @@ class CPU
                 case 0xAD: // LDA ABSOLUTE
                     if(clocks_remain < 0)
                         clocks_remain = 3;
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
-                        unsigned short address = (read_memory(regs[Reg::PC] + 2) << 8) + (read_memory(regs[Reg::PC] + 1));
+                        unsigned short address = get_absolute_address()
                         regs[Reg::A] = read_memory(address);
                         regs[Reg::PC] += 3;
                         update_lda_flags();
@@ -99,15 +100,15 @@ class CPU
                 case 0xBD: // LDA ABSOLUTE,X
                     if(clocks_remain < 0)
                     {
-                        unsigned short absolute = (read_memory(regs[Reg::PC] + 2) << 8) + (read_memory(regs[Reg::PC] + 1));
+                        unsigned short absolute = get_absolute_address();
                         if((absolute/256) < (absolute+regs[Reg::X])/256) // Crossed a page boundary
                             clocks_remain = 4;
                         else
                             clocks_remain = 3;
                     }
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
-                        unsigned short address = (read_memory(regs[Reg::PC] + 2) << 8) + (read_memory(regs[Reg::PC] + 1)) + regs[Reg::X];
+                        unsigned short address = get_absolute_address() + regs[Reg::X];
                         regs[Reg::A] = read_memory(address);
                         regs[Reg::PC] += 3;
                         update_lda_flags();
@@ -116,15 +117,15 @@ class CPU
                 case 0xB9: // LDA ABSOLUTE,Y
                     if(clocks_remain < 0)
                     {
-                        unsigned short absolute = (read_memory(regs[Reg::PC] + 2) << 8) + (read_memory(regs[Reg::PC] + 1));
+                        unsigned short absolute = get_absolute_address();
                         if((absolute/256) < (absolute+regs[Reg::Y])/256) // Crossed a page boundary
                             clocks_remain = 4;
                         else
                             clocks_remain = 3;
                     }
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
-                        unsigned short address = (read_memory(regs[Reg::PC] + 2) << 8) + (read_memory(regs[Reg::PC] + 1)) + regs[Reg::Y];
+                        unsigned short address = get_absolute_address() + regs[Reg::Y];
                         regs[Reg::A] = read_memory(address);
                         regs[Reg::PC] += 3;
                         update_lda_flags();
@@ -133,7 +134,7 @@ class CPU
                 case 0xA1: // LDA (INDIRECT,X)
                     if(clocks_remain < 0)
                         clocks_remain = 5;
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
                         unsigned short address = get_indirect_x_address();
                         regs[Reg::A] = read_memory(address);
@@ -141,7 +142,7 @@ class CPU
                         update_lda_flags();
                     }
                     break;
-                case 0xB1: // LDA (INDIRECT), Y
+                case 0xB1: // LDA (INDIRECT),Y
                     if(clocks_remain < 0)
                     {
                         unsigned short address = get_address_from_zp();
@@ -150,7 +151,7 @@ class CPU
                         else
                             clocks_remain = 4;
                     }
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
                         unsigned short zp_address = read_memory(regs[Reg::PC] + 1);
                         unsigned short address = (read_memory(zp_address + 1) << 8) + (read_memory(zp_address)); // Address _before_ Y is added
@@ -162,7 +163,7 @@ class CPU
                 case 0x69: // ADC IMMEDIATE
                     if(clocks_remain < 0)
                         clocks_remain = 1;
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
                         // From http://stackoverflow.com/questions/29193303/6502-emulation-proper-way-to-implement-adc-and-sbc
                         unsigned int result = regs[Reg::A] + read_memory(regs[Reg::PC] + 1) + flags[Flag::Carry];
@@ -174,7 +175,7 @@ class CPU
                 case 0x65: // ADC ZERO PAGE
                     if(clocks_remain < 0)
                         clocks_remain = 2;
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
                         unsigned char arg = read_memory(read_memory(regs[Reg::PC] + 1));
                         unsigned int result = regs[Reg::A] + arg + flags[Flag::Carry];
@@ -186,7 +187,7 @@ class CPU
                 case 0x75: // ADC ZERO PAGE, X
                     if(clocks_remain < 0)
                         clocks_remain = 3;
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
                         unsigned char arg = read_memory((read_memory(regs[Reg::PC]+1) + regs[Reg::X]) % 255);
                         unsigned int result = regs[Reg::A] + arg + flags[Flag::Carry];
@@ -198,9 +199,9 @@ class CPU
                 case 0x6D: // ADC ABSOLUTE
                     if(clocks_remain < 0)
                         clocks_remain = 3;
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
-                        unsigned short address = (read_memory(regs[Reg::PC] + 2) << 8) + (read_memory(regs[Reg::PC] + 1));
+                        unsigned short address = get_absolute_address();
                         unsigned char arg = read_memory(address);
                         unsigned int result = regs[Reg::A] + arg + flags[Flag::Carry];
                         regs[Reg::A] = result % 255;
@@ -211,15 +212,15 @@ class CPU
                 case 0x7D: // ADC ABSOLUTE,X
                     if(clocks_remain < 0)
                     {
-                        unsigned short absolute = (read_memory(regs[Reg::PC] + 2) << 8) + (read_memory(regs[Reg::PC] + 1));
+                        unsigned short absolute = get_absolute_address();
                         if((absolute/256) < (absolute+regs[Reg::X])/256) // Crossed a page boundary
                             clocks_remain = 4;
                         else
                             clocks_remain = 3;
                     }
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
-                        unsigned short address = (read_memory(regs[Reg::PC] + 2) << 8) + (read_memory(regs[Reg::PC] + 1)) + regs[Reg::X];
+                        unsigned short address = get_absolute_address() + regs[Reg::X];
                         unsigned char arg = read_memory(address);
                         unsigned int result = regs[Reg::A] + arg + flags[Flag::Carry];
                         regs[Reg::A] = result % 255;
@@ -230,15 +231,15 @@ class CPU
                 case 0x79: // ADC ABSOLUTE,Y
                     if(clocks_remain < 0)
                     {
-                        unsigned short absolute = (read_memory(regs[Reg::PC] + 2) << 8) + (read_memory(regs[Reg::PC] + 1));
+                        unsigned short absolute = get_absolute_address();
                         if((absolute/256) < (absolute+regs[Reg::Y])/256) // Crossed a page boundary
                             clocks_remain = 4;
                         else
                             clocks_remain = 3;
                     }
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
-                        unsigned short address = (read_memory(regs[Reg::PC] + 2) << 8) + (read_memory(regs[Reg::PC] + 1)) + regs[Reg::Y];
+                        unsigned short address = get_absolute_address() + regs[Reg::Y];
                         unsigned char arg = read_memory(address);
                         unsigned int result = regs[Reg::A] + arg + flags[Flag::Carry];
                         regs[Reg::A] = result % 255;
@@ -249,7 +250,7 @@ class CPU
                 case 0x61: // ADC (INDIRECT,X)
                     if(clocks_remain < 0)
                         clocks_remain = 5;
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
                         unsigned short address = get_indirect_x_address();
                         unsigned char arg = read_memory(address);
@@ -259,7 +260,7 @@ class CPU
                         update_adc_flags(result);
                     }
                     break;
-                case 0x71: // ADC (INDIRECT), Y
+                case 0x71: // ADC (INDIRECT),Y
                     if(clocks_remain < 0)
                     {
                         unsigned short address = get_address_from_zp(); // _before_ Y added
@@ -268,7 +269,7 @@ class CPU
                         else
                             clocks_remain = 4;
                     }
-                    if(clocks_remain == 0)
+                    else if(clocks_remain == 0)
                     {
                         unsigned short address = get_address_from_zp() + regs[Reg::Y];
                         unsigned char arg = read_memory(address);
@@ -276,6 +277,109 @@ class CPU
                         regs[Reg::A] = result % 255;
                         regs[Reg::PC] += 2;
                         update_adc_flags(result);
+                    }
+                    break;
+                case 0x29: // AND IMMEDIATE
+                    if(clocks_remain < 0)
+                        clocks_remain = 1;
+                    else if(clocks_remain == 0)
+                    {
+                        regs[Reg::A] = regs[Reg::A] & read_memory(regs[Reg::PC] + 1);
+                        regs[Reg::PC] += 2;
+                        update_and_flags();
+                    }
+                    break;
+                case 0x25: // AND ZERO PAGE
+                    if(clocks_remain < 0)
+                        clocks_remain = 2;
+                    else if(clocks_remain == 0)
+                    {
+                        regs[Reg::A] = regs[Reg::A] & read_memory(read_memory(regs[Reg::PC] + 1));
+                        regs[Reg::PC] += 2;
+                        update_and_flags();
+                    }
+                    break;
+                case 0x35: // AND ZERO PAGE, 0x
+                    if(clocks_remain < 0)
+                        clocks_remain = 3;
+                    else if(clocks_remain == 0)
+                    {
+                        regs[Reg::A] = regs[Reg::A] & read_memory((read_memory(regs[Reg::PC]+1) + regs[Reg::X]) % 255);
+                        regs[Reg::PC] += 2;
+                        update_and_flags();
+                    }
+                    break;
+                case 0x2D: // AND ABSOLUTE
+                    if(clocks_remain < 0)
+                        clocks_remain = 3;
+                    else if(clocks_remain == 0)
+                    {
+                        unsigned short address = get_absolute_address();
+                        regs[Reg::A] = regs[Reg::A] & read_memory(address);
+                        regs[Reg::PC] += 3
+                        update_and_flags();
+                    }
+                    break;
+                case 0x3D: // AND ABSOLUTE,X
+                    if(clocks_remain < 0)
+                    {
+                        unsigned short absolute = get_absolute_address();
+                        if(absolute/256 < (absolute+regs[Reg::X])/256) // Page boundary crossed
+                            clocks_remain = 4;
+                        else
+                            clocks_remain = 3;
+                    }
+                    else if(clocks_remain == 0)
+                    {
+                        unsigned short address = get_absolute_address() + regs[Reg::X];
+                        regs[Reg::A]  = regs[Reg::A] & read_memory(address);
+                        regs[Reg::PC] += 3;
+                        update_and_flags();
+                    }
+                    break;
+                case 0x39: // AND ABSOLUTE,Y
+                    if(clocks_remain < 0)
+                    {
+                        unsigned short absolute = get_absolute_address();
+                        if(absolute/256 < (absolute+regs[Reg::Y])/256) // Page boundary crossed
+                            clocks_remain = 4;
+                        else
+                            clocks_remain = 3;
+                    }
+                    else if(clocks_remain == 0)
+                    {
+                        unsigned short address = get_absolute_address() + regs[Reg::Y];
+                        regs[Reg::A] = regs[Reg::A] & read_memory(address);
+                        regs[Reg::PC] += 3;
+                        update_and_flags();
+                    }
+                    break;
+                case 0x21: // AND (INDIRECT,X)
+                    if(clocks_remain < 0)
+                        clocks_remain = 5;
+                    else if(clocks_remain == 0)
+                    {
+                        unsigned short address = get_indirect_x_address();
+                        regs[Reg::A] = regs[Reg::A] & read_memory(address);
+                        regs[Reg::PC] += 2;
+                        update_and_flags();
+                    }
+                    break;
+                case 0x31: // AND (INDIRECT),Y
+                    if(clocks_remain < 0)
+                    {
+                        unsigned short absolute = get_address_from_zp();
+                        if(absolute/256 < (absolute+regs[Reg::Y])/256) // Page boundary crossed
+                            clocks_remain = 5;
+                        else
+                            clocks_remain = 4;
+                    }
+                    else if(clocks_remain==0)
+                    {
+                        unsigned short address = get_address_from_zp() + regs[Reg::Y];
+                        regs[Reg::A] = regs[Reg::A] & read_memory(address);
+                        regs[Reg::PC] += 2;
+                        update_and_flags();                        
                     }
                     break;
             }
@@ -292,6 +396,11 @@ class CPU
         {
             unsigned short zp_address = read_memory(regs[Reg::PC] + 1);
             return (read_memory(zp_address + 1) << 8) + (read_memory(zp_address)); 
+        }
+
+        unsigned short get_absolute_address()
+        {
+            return (read_memory(regs[Reg::PC] + 2) << 8) + (read_memory(regs[Reg::PC] + 1));
         }
 
         unsigned char read_memory(int address)
