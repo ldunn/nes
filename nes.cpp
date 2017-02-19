@@ -11,7 +11,7 @@ class CPU
     public:
         enum Reg {A, X, Y, PC, S};
         enum Flag {Carry, Zero, Int_Disable, Dec_Mode, Break, Overflow, Negative};
-        std::unordered_map<Reg, int> regs;
+        std::unordered_map<Reg, unsigned int> regs;
         std::bitset<30> pins;
         std::bitset<8> flags;
         unsigned char int_memory[INT_MEMORY_SIZE];
@@ -402,6 +402,7 @@ class CPU
                         regs[Reg::PC] += 1;
                         update_asl_flags(result);
                     }
+                    break;
                 case 0x06: // ASL ZERO PAGE
                     if(clocks_remain < 0)
                         clocks_remain = 4;
@@ -448,6 +449,42 @@ class CPU
                         write_memory(address, result);
                         regs[Reg::PC] += 3;
                         update_asl_flags(result);
+                    }
+                    break;
+                case 0x90: // BCC
+                    if(clocks_remain < 0)
+                    {
+                        // Not positive on the timing here
+                        clocks_remain = 1;
+                        unsigned short branch_addr = regs[Reg::PC] + (signed char)read_memory(regs[Reg::PC] + 1);
+                        bool branch_succeed = flags[Flag::Carry] == 0;
+                        if(branch_succeed)
+                            clocks_remain += 1;
+                        if(regs[Reg::PC]/256 < branch_addr/256 && branch_succeed) // Page boundary crossed
+                            clocks_remain += 2;
+                    }
+                    else if(clocks_remain == 0)
+                    {
+                        if(flags[Flag::Carry] == 0)
+                            regs[Reg::PC] += (signed char)read_memory(regs[Reg::PC] + 1);
+                    }
+                    break;
+                case 0xB0: // BCS
+                    if(clocks_remain < 0)
+                    {
+                        // Not positive on the timing here
+                        clocks_remain = 1;
+                        unsigned short branch_addr = regs[Reg::PC] + (signed char)read_memory(regs[Reg::PC] + 1);
+                        bool branch_succeed = flags[Flag::Carry] == 1;
+                        if(branch_succeed)
+                            clocks_remain += 1;
+                        if(regs[Reg::PC]/256 < branch_addr/256 && branch_succeed) // Page boundary crossed
+                            clocks_remain += 2;
+                    }
+                    else if(clocks_remain == 0)
+                    {
+                        if(flags[Flag::Carry] == 1)
+                            regs[Reg::PC] += (signed char)read_memory(regs[Reg::PC] + 1);
                     }
                     break;
                 
@@ -497,13 +534,13 @@ int main()
 {
     CPU cpu = CPU();
     cpu.regs[CPU::Reg::A] = 0x1;
-    cpu.regs[CPU::Reg::Y] = 0x4;
     cpu.int_memory[0] = 0x0A;
-    cpu.int_memory[1] = 0x0A;
-    cpu.int_memory[2] = 0x0A;
+    cpu.int_memory[1] = 0x90;
+    cpu.int_memory[2] = -1;
     cpu.int_memory[0x105] = 0xBD;
-    while(cpu.cycle < 10)
+    while(cpu.cycle < 100)
     {
         cpu.do_cycle();
     }
+    return 0;
 }
