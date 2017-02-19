@@ -3,6 +3,9 @@
 #include<vector>
 #include<bitset>
 #include<unordered_map>
+
+#define INT_MEMORY_SIZE 16384
+
 class CPU
 {
     public:
@@ -11,7 +14,7 @@ class CPU
         std::unordered_map<Reg, int> regs;
         std::bitset<30> pins;
         std::bitset<8> flags;
-        unsigned char int_memory[2048];
+        unsigned char int_memory[INT_MEMORY_SIZE];
         int cycle;
         int clocks_remain;
         CPU()
@@ -45,6 +48,13 @@ class CPU
         {
             flags[Flag::Zero] = regs[Reg::A] == 0;
             flags[Flag::Negative] = std::bitset<8>(regs[Reg::A])[7] == 1;
+        }
+
+        void update_asl_flags(unsigned int result)
+        {
+            flags[Flag::Carry] = std::bitset<32>(regs[Reg::A])[8];
+            flags[Flag::Negative] = std::bitset<8>(regs[Reg::A])[7] == 1;
+            flags[Flag::Zero] = regs[Reg::A] == 0;
         }
 
         void do_cycle()
@@ -91,7 +101,7 @@ class CPU
                         clocks_remain = 3;
                     else if(clocks_remain == 0)
                     {
-                        unsigned short address = get_absolute_address()
+                        unsigned short address = get_absolute_address();
                         regs[Reg::A] = read_memory(address);
                         regs[Reg::PC] += 3;
                         update_lda_flags();
@@ -316,7 +326,7 @@ class CPU
                     {
                         unsigned short address = get_absolute_address();
                         regs[Reg::A] = regs[Reg::A] & read_memory(address);
-                        regs[Reg::PC] += 3
+                        regs[Reg::PC] += 3;
                         update_and_flags();
                     }
                     break;
@@ -382,6 +392,65 @@ class CPU
                         update_and_flags();                        
                     }
                     break;
+                case 0x0A: // ASL ACCUMULATOR
+                    if(clocks_remain < 0)
+                        clocks_remain = 1;
+                    else if(clocks_remain == 0)
+                    {
+                        unsigned int result = regs[Reg::A] << 1;
+                        regs[Reg::A] = result % 255;
+                        regs[Reg::PC] += 1;
+                        update_asl_flags(result);
+                    }
+                case 0x06: // ASL ZERO PAGE
+                    if(clocks_remain < 0)
+                        clocks_remain = 4;
+                    else if(clocks_remain == 0)
+                    {
+                        unsigned short address = read_memory(regs[Reg::PC]+1);
+                        unsigned int result = read_memory(address) << 1;
+                        write_memory(address, result);
+                        regs[Reg::PC] += 2;
+                        update_asl_flags(result);
+                    }
+                    break;
+                case 0x16: // ASL ZERO PAGE,X
+                    if(clocks_remain < 0)
+                        clocks_remain = 5;
+                    else if(clocks_remain == 0)
+                    {
+                        unsigned short address = (read_memory(regs[Reg::PC] + 1) + regs[Reg::X]) % 255;
+                        unsigned int result = read_memory(address) << 1;
+                        write_memory(address, result);
+                        regs[Reg::PC] += 2;
+                        update_asl_flags(result);
+                    }
+                    break;
+                case 0x0E: // ASL ABSOLUTE
+                    if(clocks_remain < 0)
+                        clocks_remain = 5;
+                    else if(clocks_remain == 0)
+                    {
+                        unsigned short address = get_absolute_address();
+                        unsigned int result = read_memory(address) << 1;
+                        write_memory(address, result);
+                        regs[Reg::PC] += 3;
+                        update_asl_flags(result);
+                    }
+                    break;
+                case 0x1E: // ASL ABSOLUTE,X
+                    if(clocks_remain < 0)
+                        clocks_remain = 6;
+                    else if(clocks_remain == 0)
+                    {
+                        unsigned short address = get_absolute_address() + regs[Reg::X];
+                        unsigned int result = read_memory(address) << 1;
+                        write_memory(address, result);
+                        regs[Reg::PC] += 3;
+                        update_asl_flags(result);
+                    }
+                    break;
+                
             }
             cycle++;
         }
@@ -405,13 +474,22 @@ class CPU
 
         unsigned char read_memory(int address)
         {
-            if(address < 2048)
+            if(address < INT_MEMORY_SIZE)
             {
                 std::cout << "Reading memory from 0x" << std::hex << address << ": got 0x" << (int)int_memory[address] << std::dec << std::endl;
                 return int_memory[address];
             }
             else
                 return 0;
+        }
+
+        void write_memory(int address, unsigned char value)
+        {
+            if(address < INT_MEMORY_SIZE)
+            {
+                std::cout << "Writing at address 0x" << std::hex << address << ": 0x" << (int)value << std::dec << std::endl;
+                int_memory[address] = value;
+            }
         }
 };
 
@@ -420,9 +498,9 @@ int main()
     CPU cpu = CPU();
     cpu.regs[CPU::Reg::A] = 0x1;
     cpu.regs[CPU::Reg::Y] = 0x4;
-    cpu.int_memory[0] = 0x71;
-    cpu.int_memory[1] = 0x1;
-    cpu.int_memory[2] = 0x01;
+    cpu.int_memory[0] = 0x0A;
+    cpu.int_memory[1] = 0x0A;
+    cpu.int_memory[2] = 0x0A;
     cpu.int_memory[0x105] = 0xBD;
     while(cpu.cycle < 10)
     {
