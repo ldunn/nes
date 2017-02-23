@@ -7,7 +7,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceRoot}/nes",
-            "args": [],
+            "args": ["${workspaceRoot}/02-implied.nes"],
             "stopAtEntry": false,
             "cwd": "${workspaceRoot}",
             "environment": [],
