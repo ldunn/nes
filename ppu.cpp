@@ -74,13 +74,13 @@ void PPU::do_cycle()
             {
                 //std::cout << "[PPU] DOING VISIBLE SCANLINE " << scanline << " AT DOT " << dot << std::endl;
                 unsigned char name_table = PPUCTRL & 0x3; // Low 2 bits of PPUCTRL select name table
-                unsigned char pattern_table = std::bitset<8>(PPUCTRL)[4];
+                unsigned char pattern_table_bg = std::bitset<8>(PPUCTRL)[4];
                 int x = dot/8;
                 int i = dot % 8;
                 int y = scanline;
                 unsigned short tile = name_tables[name_table][x + (y/8)*32];
-                unsigned char low_byte = pattern_tables[pattern_table][(tile<<4)+y%8];
-                unsigned char high_byte = pattern_tables[pattern_table][(tile<<4)+(y%8)+8];
+                unsigned char low_byte = pattern_tables[pattern_table_bg][(tile<<4)+y%8];
+                unsigned char high_byte = pattern_tables[pattern_table_bg][(tile<<4)+(y%8)+8];
                 unsigned char attr_index = 8*y/32 + dot/32;
                 unsigned char attr_byte = name_tables[name_table][0x3C0+attr_index];
                 unsigned char attr_data;
@@ -96,20 +96,52 @@ void PPU::do_cycle()
 
                 /*unsigned char low_byte = pattern_tables[pattern_table][0x500+y%8];
                 unsigned char high_byte = pattern_tables[pattern_table][0x508+y%8];*/
-                unsigned char pixel_on = ((low_byte >> i) & 0x1) + ((high_byte >> i) & 0x1);
+                unsigned char pixel_on = ((low_byte >> (7-i)) & 0x1) + ((high_byte >> (7-i)) & 0x1);
                 if(pixel_on != 0)
                 {
-                    buffer[(y*32*8 + x*8 + (7-i))*4] = palette_colors[palette[((attr_data<<2) | pixel_on)]*3];
-                    buffer[(y*32*8 + x*8 + (7-i))*4 + 1] = palette_colors[palette[((attr_data<<2) | pixel_on)]*3+1];
-                    buffer[(y*32*8 + x*8 + (7-i))*4 + 2] = palette_colors[palette[((attr_data<<2) | pixel_on)]*3+2];
-                    buffer[(y*32*8 + x*8 + (7-i))*4 + 3] = 255;
+                    buffer[(y*32*8 + x*8 + i)*4] = palette_colors[palette[(((attr_data<<2) & 0xC )| pixel_on)]*3];
+                    buffer[(y*32*8 + x*8 + i)*4 + 1] = palette_colors[palette[(((attr_data<<2) & 0xC ) | pixel_on)]*3+1];
+                    buffer[(y*32*8 + x*8 + i)*4 + 2] = palette_colors[palette[(((attr_data<<2) & 0xC ) | pixel_on)]*3+2];
+                    buffer[(y*32*8 + x*8 + i)*4 + 3] = 255;
                 }
                 else
                 {
-                    buffer[(y*32*8 + x*8 + (7-i))*4] = palette_colors[palette[0]*3];
-                    buffer[(y*32*8 + x*8 + (7-i))*4 + 1] = palette_colors[palette[0]*3+1];
-                    buffer[(y*32*8 + x*8 + (7-i))*4 + 2] = palette_colors[palette[0]*3+2];
-                    buffer[(y*32*8 + x*8 + (7-i))*4 + 3] = 255;
+                    buffer[(y*32*8 + x*8 + i)*4] = palette_colors[palette[0]*3];
+                    buffer[(y*32*8 + x*8 + i)*4 + 1] = palette_colors[palette[0]*3+1];
+                    buffer[(y*32*8 + x*8 + i)*4 + 2] = palette_colors[palette[0]*3+2];
+                    buffer[(y*32*8 + x*8 + i)*4 + 3] = 255;
+                }
+                for(int j = 0; j < 64; j++)
+                {
+                    unsigned char *oam_data = &(OAM[j*4]);
+                    if(y-1 >= oam_data[0] && y-1 < oam_data[0] + 8 && dot >= oam_data[3] && dot < (unsigned int)oam_data[3] + 8)
+                    {
+                        i = dot - oam_data[3];
+                        unsigned char palette_sel = (oam_data[2] & 0x3) + 4;
+                        unsigned char tile = oam_data[1];
+                        unsigned char pattern_table_spr = std::bitset<8>(PPUCTRL)[3];
+                        low_byte = pattern_tables[pattern_table_spr][(tile<<4)+(y - oam_data[0]-1) % 8];
+                        high_byte = pattern_tables[pattern_table_spr][(tile<<4)+((y - oam_data[0]-1) % 8) + 8];
+                        if(std::bitset<8>(oam_data[2])[6]) // Horizontal flip
+                            pixel_on = ((low_byte >> i) & 0x1) + ((high_byte >> i) & 0x1);
+                        else
+                            pixel_on = ((low_byte >> (7-i)) & 0x1) + ((high_byte >> (7-i)) & 0x1);
+                        if(pixel_on != 0)
+                        {
+                            std::cout << "[PPU] DRAWING WITH BYTES " << (int)low_byte << " " << (int)high_byte << ": i = " << i << std::endl;
+                            buffer[(y*32*8 + dot)*4] = palette_colors[palette[(((palette_sel) & 0xC ) | pixel_on)]*3];
+                            buffer[(y*32*8 + dot)*4 + 1] = palette_colors[palette[(((palette_sel) & 0xC ) | pixel_on)]*3+1];
+                            buffer[(y*32*8 + dot)*4 + 2] = palette_colors[palette[(((palette_sel) & 0xC ) | pixel_on)]*3+2];
+                            buffer[(y*32*8 + dot)*4 + 3] = 255;
+                        }
+                        else
+                        {
+                            buffer[(y*32*8 + dot)*4] = palette_colors[palette[0]*3];
+                            buffer[(y*32*8 + dot)*4 + 1] = palette_colors[palette[0]*3+1];
+                            buffer[(y*32*8 + dot)*4 + 2] = palette_colors[palette[0]*3+2];
+                            buffer[(y*32*8 + dot)*4 + 3] = 255;
+                        }
+                    }
                 }
             }
             break;
@@ -117,7 +149,7 @@ void PPU::do_cycle()
             if(dot == 0)
             {
                 NMI_occurred = true;
-                std::cout << "[PPU] SETTING VBLANK BIT OF PPUSTATUS" << std::endl;
+                //std::cout << "[PPU] SETTING VBLANK BIT OF PPUSTATUS" << std::endl;
                 PPUSTATUS |= 0x80;
             }
             break;
@@ -162,10 +194,10 @@ PPU::PPU()
             for(int i = 0; i < 8; i++)
             {
                 bool pixel_on = ((low_byte >> i) & 0x1) | ((high_byte >> i) & 0x1);
-                buffer[(y*32*8 + x*8 + i)*4] = 0;
-                buffer[(y*32*8 + x*8 + i)*4 + 1] = 0;
-                buffer[(y*32*8 + x*8 + i)*4 + 2] = pixel_on*255;
-                buffer[(y*32*8 + x*8 + i)*4 + 3] = 255;
+                buffer[(y*32*8 + dot)*4] = 0;
+                buffer[(y*32*8 + dot)*4 + 1] = 0;
+                buffer[(y*32*8 + dot)*4 + 2] = pixel_on*255;
+                buffer[(y*32*8 + dot)*4 + 3] = 255;
             }
         }
     }
@@ -196,8 +228,8 @@ unsigned char PPU::read_memory(unsigned short address)
 
 void PPU::dump_memory(unsigned char *buffer)
 {
-    for(int i = 0; i < 0x4000; i++)
-        buffer[i]  = read_memory(i);
+    for(int i = 0; i < 256; i++)
+        buffer[i]  = OAM[i];
 }
 
 void PPU::write_memory(unsigned short address, unsigned char val)
@@ -245,13 +277,13 @@ void PPU::update_addr(unsigned short byte)
 {
     if(vram_addr_high_byte)
     {
-        std::cout << "[PPU] SETTING HIGH BYTE OF VRAM ADDR AS 0x" << std::hex << byte << std::dec << std::endl;
+        //std::cout << "[PPU] SETTING HIGH BYTE OF VRAM ADDR AS 0x" << std::hex << byte << std::dec << std::endl;
         vram_addr &= 0x00ff;
         vram_addr |= (byte << 8);
     }
     else
     {
-        std::cout << "[PPU] SETTING LOW BYTE OF VRAM ADDR AS 0x" << std::hex << byte << std::dec << std::endl;
+        //std::cout << "[PPU] SETTING LOW BYTE OF VRAM ADDR AS 0x" << std::hex << byte << std::dec << std::endl;
         vram_addr &= 0xff00;
         vram_addr |= byte & 0x00FF;
     }

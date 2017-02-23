@@ -1586,6 +1586,8 @@ void CPU::do_cycle()
                 flags[Flag::Zero] = status[1];
                 flags[Flag::Int_Disable] = status[2];
                 flags[Flag::Dec_Mode] = status[3];
+                flags[4] = status[4];
+                flags[5] = status[5];
                 flags[Flag::Overflow] = status[6];
                 flags[Flag::Negative] = status[7];
                 PC += 1;
@@ -2133,26 +2135,29 @@ unsigned char CPU::read_memory(unsigned short address)
     {
         case 0x2002: // PPUSTATUS
             ret = ppu->PPUSTATUS;
-            std::cout << "READING PPUSTATUS: 0x" << std::hex << (short)ret << std::dec << std::endl;
+            //std::cout << "READING PPUSTATUS: 0x" << std::hex << (short)ret << std::dec << std::endl;
             ppu->PPUSTATUS &= ~(1 << 7); // Clear vblank on read
             ppu->NMI_occurred = false;
             ppu->vram_addr = 0;
             break;
         case 0x2004: // OAMDATA
             ret = ppu->OAMDATA; // For now this has no side-effects
-            std::cout << "READING OAMDATA 0x" << std::hex << (short)ret << std::dec << std::endl;
+            //std::cout << "READING OAMDATA 0x" << std::hex << (short)ret << std::dec << std::endl;
             break;
         case 0x2007: // PPUDATA
             ret = ppu->read_data();
-            std::cout << "READING PPUDATA 0x" << std::hex << (short)ret << std::dec << std::endl;
+            //std::cout << "READING PPUDATA 0x" << std::hex << (short)ret << std::dec << std::endl;
             break;
         case 0x4016: // JOYPAD1
             if(!controller_strobe)
             {
-                std::cout << "READ JOYPAD1 RETURNING " << std::hex <<  (0x40 | ((0x8 >> controller_read_count) & buttons_pressed)) << std::dec << std::endl;
-                ret = 0x40 | ((0x8 >> controller_read_count) & buttons_pressed);
-                controller_read_count++;
-                controller_read_count = controller_read_count % 8;
+                if(sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
+                {
+                    std::cout << "SENDING START" << std::endl;
+                    ret = 0x40 | ((0x8 >> controller_read_count) & buttons_pressed);
+                    controller_read_count++;
+                    controller_read_count = controller_read_count % 8;
+                }
             }
             break;
         default: 
@@ -2166,44 +2171,44 @@ void CPU::write_memory(unsigned short address, unsigned char value)
     switch(address)
     {
         case 0x2000: // PPUCTRL
-            std::cout << "WRITING TO PPUCTRL: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
+            //std::cout << "WRITING TO PPUCTRL: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
             ppu->PPUCTRL = value;
             ppu->NMI_output = std::bitset<8>(ppu->PPUCTRL)[7];
             break;
         case 0x2001: // PPUMASK
-            std::cout << "WRITING TO PPUMASK: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
+            //std::cout << "WRITING TO PPUMASK: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
             ppu->PPUMASK = value;
             break;
         case 0x2003: // OAMADDR
-            std::cout << "WRITING TO OAMADDR: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
+            //std::cout << "WRITING TO OAMADDR: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
             ppu->OAMADDR = value;
             break;
         case 0x2004: // OAMDATA
-            std::cout << "WRITING TO OAMDATA: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
+            //std::cout << "WRITING TO OAMDATA: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
             ppu->write_oam(value);
             break;
         case 0x2005: // PPUSCROLL
-            std::cout << "WRITING TO PPUSCROLL: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
+            //std::cout << "WRITING TO PPUSCROLL: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
             // TODO IMPLEMENT PROPERLY
             ppu->PPUSCROLL = value;
             break;
         case 0x2006: // PPUADDR
-            std::cout << "WRITING TO PPUADDR: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
+            //std::cout << "WRITING TO PPUADDR: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
             ppu->update_addr(value);
             break;
         case 0x2007: // PPUDATA
-            std::cout << "WRITING TO PPUDATA: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
-            std::cout << "CURRENT PPU VRAM ADDR: 0x" << std::hex << ppu->vram_addr << std::dec << std::endl;
+            //std::cout << "WRITING TO PPUDATA: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
+            //std::cout << "CURRENT PPU VRAM ADDR: 0x" << std::hex << ppu->vram_addr << std::dec << std::endl;
             ppu->write_data(value);
             break;
         case 0x4014: // OAMDMA
-            std::cout << "WRITING TO OAMDMA 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
+            //std::cout << "WRITING TO OAMDMA 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
             oam_write_pending = true;
             ppu->OAMDMA = value;
             clocks_remain = 513;
             break;
         case 0x4016: // JOYPAD1
-            std::cout << "WROTE JOYPAD1: 0x" << std::hex << (unsigned short) value << std::dec << std::endl;
+            //std::cout << "WROTE JOYPAD1: 0x" << std::hex << (unsigned short) value << std::dec << std::endl;
             controller_strobe = value % 2 == 1;
             if(controller_strobe && cycle % 10 == 0)
                 buttons_pressed = !buttons_pressed;
