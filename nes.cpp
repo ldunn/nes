@@ -42,9 +42,6 @@ public:
     }
 };
 
-
-
-
 int main(int argc, char *argv[])
 {
     std::ifstream nes_in(argv[1], std::ios::binary);
@@ -73,46 +70,52 @@ int main(int argc, char *argv[])
     sf::Sprite sprite;
     sprite.setTexture(text);
     sprite.setPosition(0, 0);
+    sf::Clock clock;
+    sf::Time start = clock.getElapsedTime();
+    int frame = 0;
+    window.setFramerateLimit(60);
     while(window.isOpen())
     {
-        ppu.do_cycle();
-        ppu.do_cycle();
-        ppu.do_cycle();
-        cpu.do_cycle();   
-        
-        if(cpu.cycle % 40000 == 0)
+        for(int i =0; i < 29781; i++)
         {
-            window.setTitle(std::to_string(ppu.frame));    
-            std::ofstream out("dump", std::ios::out | std::ios::binary);
-            unsigned char ppu_buffer[0x4000];
-            ppu.dump_memory(ppu_buffer);
-            out.write((char *)ppu_buffer, 0x4000);
-            out.close();
-            std::ofstream test_out("test_out", std::ios::out);
-            test_out.write((char *)&(cpu.int_memory[0x6004]),0x2000);
-            test_out.close();
-            if(cpu.S > 0x1ff || cpu.S < 0x100)
-            {
-                std::cout << "STACK BLOWN" << std::endl;
-                while(1);
-            }
-                
-            window.clear(sf::Color(255, 255, 255));
-            //ppu.render(buffer);
-
-            text.update(ppu.buffer);
-
-            window.draw(sprite);
-
-            window.display();
-            sf::Event event;
-            while(window.pollEvent(event))
-            {
-                if(event.type == sf::Event::Closed)
-                    window.close();
-            }
+            ppu.do_cycle();
+            ppu.do_cycle();
+            ppu.do_cycle();
+            cpu.do_cycle();
         }
+        sf::Time curr = clock.getElapsedTime();
+        float fps = (ppu.frame - frame)/(curr.asSeconds() - start.asSeconds());
+        start = curr;
+        frame = ppu.frame;
+        window.setTitle(std::to_string(fps));    
+        /* std::ofstream out("dump", std::ios::out | std::ios::binary);
+        unsigned char ppu_buffer[0x4000];
+        ppu.dump_memory(ppu_buffer);
+        out.write((char *)ppu_buffer, 0x4000);
+        out.close();
+        std::ofstream test_out("test_out", std::ios::out);
+        test_out.write((char *)&(cpu.int_memory[0x6004]),0x2000);
+        test_out.close();*/
+        if(cpu.S > 0x1ff || cpu.S < 0x100)
+        {
+            std::cout << "STACK BLOWN" << std::endl;
+            while(1);
+        }
+            
+        window.clear(sf::Color(255, 255, 255));
+        //ppu.render(buffer);
 
+        text.update(ppu.buffer);
 
+        window.draw(sprite);
+
+        window.display();
+        sf::Event event;
+        while(window.pollEvent(event))
+        {
+            if(event.type == sf::Event::Closed)
+                window.close();
+        }
     }
+
 }
