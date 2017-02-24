@@ -81,27 +81,29 @@ void PPU::do_cycle()
                 unsigned short tile = name_tables[name_table][x + (y/8)*32];
                 unsigned char low_byte = pattern_tables[pattern_table_bg][(tile<<4)+y%8];
                 unsigned char high_byte = pattern_tables[pattern_table_bg][(tile<<4)+(y%8)+8];
-                unsigned char attr_index = 8*y/32 + dot/32;
-                unsigned char attr_byte = name_tables[name_table][0x3C0+attr_index];
+                unsigned char attr_index = 8*(y/32) + dot/32;
+                //std::cout << "ATTR_INDEX FOR (" << dot << "," << y <<") :" << (int)attr_index << std::endl;
+                unsigned char attr_byte = name_tables[name_table][0x3C0 + name_table*0x300 + attr_index];
                 unsigned char attr_data;
                 if((dot/16) % 2 == 0 && (y/16) % 2 == 0) // Upper left quad
-                    attr_data = (attr_byte >> 6) & 0x3;
-                else if((dot/16) % 2 == 1 && (y/16) % 2 == 0) // Upper right quad
-                    attr_data = (attr_byte >> 4) & 0x3;
-                else if((dot/16) % 2 == 0 && (y/16) % 2 == 1) // Lower left quad
-                    attr_data = (attr_byte >> 2) & 0x3;
-                else
                     attr_data = attr_byte & 0x3;
-
+                else if((dot/16) % 2 == 1 && (y/16) % 2 == 0) // Upper right quad
+                    attr_data = (attr_byte >> 2) & 0x3;
+                else if((dot/16) % 2 == 0 && (y/16) % 2 == 1) // Lower left quad
+                    attr_data = (attr_byte >> 4) & 0x3;
+                else
+                    attr_data = (attr_byte >> 6) & 0x3;
 
                 /*unsigned char low_byte = pattern_tables[pattern_table][0x500+y%8];
                 unsigned char high_byte = pattern_tables[pattern_table][0x508+y%8];*/
                 unsigned char pixel_on = ((low_byte >> (7-i)) & 0x1) + ((high_byte >> (7-i)) & 0x1);
                 if(pixel_on != 0)
                 {
-                    buffer[(y*32*8 + x*8 + i)*4] = palette_colors[palette[(((attr_data<<2) & 0xC )| pixel_on)]*3];
-                    buffer[(y*32*8 + x*8 + i)*4 + 1] = palette_colors[palette[(((attr_data<<2) & 0xC ) | pixel_on)]*3+1];
-                    buffer[(y*32*8 + x*8 + i)*4 + 2] = palette_colors[palette[(((attr_data<<2) & 0xC ) | pixel_on)]*3+2];
+                    std::cout << "ATTR: " << (int)attr_data << " PIXEL_ON : " << (int)pixel_on << " DRAWING PIXEL WITH COLOR " << (int)palette_colors[palette[(attr_data*4 + pixel_on)]*3] << 
+                        (int)palette_colors[palette[(attr_data*4 + pixel_on)]*3+1] << (int)palette_colors[palette[(attr_data*4 + pixel_on)]*3+2] << std::endl;
+                    buffer[(y*32*8 + x*8 + i)*4] = palette_colors[palette[(attr_data*4 + pixel_on)]*3];
+                    buffer[(y*32*8 + x*8 + i)*4 + 1] = palette_colors[palette[(attr_data*4 + pixel_on)]*3+1];
+                    buffer[(y*32*8 + x*8 + i)*4 + 2] = palette_colors[palette[(attr_data*4 + pixel_on)]*3+2];
                     buffer[(y*32*8 + x*8 + i)*4 + 3] = 255;
                 }
                 else
@@ -129,9 +131,9 @@ void PPU::do_cycle()
                         if(pixel_on != 0)
                         {
                             std::cout << "[PPU] DRAWING WITH BYTES " << (int)low_byte << " " << (int)high_byte << ": i = " << i << std::endl;
-                            buffer[(y*32*8 + dot)*4] = palette_colors[palette[(((palette_sel) & 0xC ) | pixel_on)]*3];
-                            buffer[(y*32*8 + dot)*4 + 1] = palette_colors[palette[(((palette_sel) & 0xC ) | pixel_on)]*3+1];
-                            buffer[(y*32*8 + dot)*4 + 2] = palette_colors[palette[(((palette_sel) & 0xC ) | pixel_on)]*3+2];
+                            buffer[(y*32*8 + dot)*4] = palette_colors[palette[palette_sel*4 + pixel_on]*3];
+                            buffer[(y*32*8 + dot)*4 + 1] = palette_colors[palette[palette_sel*4 + pixel_on]*3+1];
+                            buffer[(y*32*8 + dot)*4 + 2] = palette_colors[palette[palette_sel*4 + pixel_on]*3+2];
                             buffer[(y*32*8 + dot)*4 + 3] = 255;
                         }
                         else
@@ -155,13 +157,20 @@ void PPU::do_cycle()
             break;
         case 260:
             NMI_occurred = false;
-            scanline = 0;
             break;
     }
-    if(dot++ > 339)
+    dot++;
+    if(dot > 340)
     {
         scanline++;
         dot = 0;
+        if(scanline == 260)
+        {
+            scanline = -1;
+            if(odd_frame)
+                dot = 1;
+        }
+        
     }
     if(NMI_occurred && NMI_output)
         cpu->NMI = true;
@@ -221,15 +230,18 @@ unsigned char PPU::read_memory(unsigned short address)
     else if(address <= 0x2FFF)
         return name_tables[3][address - 0x2C00];
     else if(address >= 0x3F00)
+    {
+        std::cout << "[PPU] READ FROM PALETTE AT 0x" << address << ": " << palette[address-0x3F00] << std::endl;
         return palette[address - 0x3F00];
+    }
     else
         return 0;
 }
 
 void PPU::dump_memory(unsigned char *buffer)
 {
-    for(int i = 0; i < 256; i++)
-        buffer[i]  = OAM[i];
+    for(int i = 0; i < 0x4000; i++)
+        buffer[i]  = read_memory(i);
 }
 
 void PPU::write_memory(unsigned short address, unsigned char val)
@@ -247,7 +259,10 @@ void PPU::write_memory(unsigned short address, unsigned char val)
     else if(address <= 0x2FFF)
         name_tables[3][address - 0x2C00] = val;
     else if(address >= 0x3F00)
+    {
+        std::cout << "[PPU] WROTE INTO PALETTE AT 0x" << address << ": " << (int) val << std::endl;
         palette[address - 0x3F00] = val;
+    }
 
 }
 

@@ -82,9 +82,9 @@ int main(int argc, char *argv[])
         if(cpu.cycle % 40000 == 0)
         {
             std::ofstream out("dump", std::ios::out | std::ios::binary);
-            unsigned char ppu_buffer[256];
+            unsigned char ppu_buffer[0x4000];
             ppu.dump_memory(ppu_buffer);
-            out.write((char *)ppu_buffer, 256);
+            out.write((char *)ppu_buffer, 0x4000);
             out.close();
             std::ofstream test_out("test_out", std::ios::out);
             test_out.write((char *)&(cpu.int_memory[0x6004]),0x2000);
@@ -92,7 +92,7 @@ int main(int argc, char *argv[])
             if(cpu.S > 0x1ff || cpu.S < 0x100)
             {
                 std::cout << "STACK BLOWN" << std::endl;
-                return -1;
+                while(1);
             }
                 
             window.clear(sf::Color(255, 255, 255));
