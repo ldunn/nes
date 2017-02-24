@@ -2145,14 +2145,38 @@ unsigned char CPU::read_memory(unsigned short address)
         case 0x4016: // JOYPAD1
             if(!controller_strobe)
             {
-                if(sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
+                switch(controller_read_count)
                 {
-                    std::cout << "SENDING START" << std::endl;
-                    ret = 0x40 | ((0x8 >> controller_read_count) & buttons_pressed);
-                    controller_read_count++;
-                    controller_read_count = controller_read_count % 8;
+                    case 0:
+                        ret = 0x40 | sf::Keyboard::isKeyPressed(sf::Keyboard::Z);
+                        break;
+                    case 1:
+                        ret = 0x40 | sf::Keyboard::isKeyPressed(sf::Keyboard::X);
+                        break;
+                    case 2:
+                        ret = 0x40 | sf::Keyboard::isKeyPressed(sf::Keyboard::Space);
+                        break;
+                    case 3:
+                        ret = 0x40 | sf::Keyboard::isKeyPressed(sf::Keyboard::Return);
+                        break;
+                    case 4:
+                        ret = 0x40 | sf::Keyboard::isKeyPressed(sf::Keyboard::Up);
+                        break;
+                    case 5:
+                        ret = 0x40 | sf::Keyboard::isKeyPressed(sf::Keyboard::Down);
+                        break;
+                    case 6:
+                        ret = 0x40 | sf::Keyboard::isKeyPressed(sf::Keyboard::Left);
+                        break;
+                    case 7:
+                        ret = 0x40 | sf::Keyboard::isKeyPressed(sf::Keyboard::Right);
+                        break;
                 }
+                controller_read_count += 1;
+                controller_read_count = controller_read_count % 8;
             }
+            else
+                controller_read_count = 0;
             break;
         default: 
             ret = int_memory[address];
