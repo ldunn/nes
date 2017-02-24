@@ -20,7 +20,6 @@ class PPU;
 class CPU
 {
 public:
-    enum Flag {Carry=0, Zero, Int_Disable, Dec_Mode, Break, Blank, Overflow, Negative};
     unsigned char A;
     unsigned char X ;
     unsigned char Y;
@@ -30,7 +29,13 @@ public:
     bool NMI;
     bool oam_write_pending;
     PPU *ppu;
-    std::bitset<8> flags;
+    bool flags_carry;
+    bool flags_zero;
+    bool flags_int_disable;
+    bool flags_dec_mode;
+    bool flags_break;
+    bool flags_overflow;
+    bool flags_negative;
     unsigned char int_memory[CPU_INT_MEMORY_SIZE];
     int cycle;
     int clocks_remain;

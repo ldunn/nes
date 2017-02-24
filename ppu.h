@@ -3,6 +3,7 @@
 
 #include "cpu.h"
 #include <SFML/Graphics.hpp>
+#include<queue>
 
 class CPU;
 
@@ -23,6 +24,8 @@ public:
     bool NMI_occurred;
     bool NMI_output;
     unsigned char OAM[256];
+    unsigned char OAM_secondary[8];
+    unsigned char sprite_dots[256]; //index into palette
     unsigned char pattern_tables[2][4096];
     unsigned char name_tables[4][1024];
     unsigned char palette[32];
@@ -38,6 +41,7 @@ public:
     void increment_addr();
     int scanline;
     int dot;
+    int frame;
     bool odd_frame;
     sf::Uint8 *buffer;
     bool vram_addr_high_byte; // 0 = update low byte, 1 = update high byte

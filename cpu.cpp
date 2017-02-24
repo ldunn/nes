@@ -8,7 +8,13 @@ CPU::CPU()
     S = 0x1FF;
     PC = 0x0;
     cycle = 0;
-    flags = std::bitset<8>(0x27);
+    flags_zero = 1;
+    flags_carry = 1;
+    flags_int_disable = 1;
+    flags_dec_mode = 0;
+    flags_break = 0;
+    flags_overflow = 0;
+    flags_negative = 0;
     clocks_remain = 0;
     oam_write_pending = false;
     controller_read_count = 0;
@@ -24,7 +30,6 @@ void CPU::dump_memory(unsigned char *buffer)
 
 void CPU::dump_registers()
 {
-    std::cout << std::hex << " P: " << flags.to_ullong();
     std::cout << std::hex << " A: " << (unsigned short)A;
     std::cout << std::hex << " X: " << (unsigned short)X ;
     std::cout << std::hex << " Y: " << (unsigned short)Y;
@@ -33,112 +38,112 @@ void CPU::dump_registers()
 
 void CPU::update_lda_flags()
 {
-    flags[Flag::Zero] = A == 0;
-    flags[Flag::Negative] = std::bitset<8>(A)[7];
+    flags_zero = A == 0;
+    flags_negative = A & 0x80;
     
 }
 
 void CPU::update_adc_flags(unsigned char arg, unsigned int result)
 {
     //std::cout << "[ADC] RESULT: 0x" << std::hex << result << std::dec << std::endl;
-    flags[Flag::Carry] = (result > 0xFF);
-    flags[Flag::Zero] = (result & 0xff) == 0;
-    flags[Flag::Overflow] = ((A ^ result) & (arg ^ result) & 0x80);
-    flags[Flag::Negative] = std::bitset<8>(result & 0xff)[7] == 1;            
+    flags_carry = (result > 0xFF);
+    flags_zero = (result & 0xff) == 0;
+    flags_overflow = ((A ^ result) & (arg ^ result) & 0x80);
+    flags_negative = ((result & 0xff) & 0x80);            
 }
 
 void CPU::update_and_flags()
 {
-    flags[Flag::Zero] = A == 0;
-    flags[Flag::Negative] = std::bitset<8>(A)[7] == 1;
+    flags_zero = A == 0;
+    flags_negative = (A & 0x80);
 }
 
 void CPU::update_asl_flags(unsigned char orig, unsigned char result)
 {
-    flags[Flag::Carry] = std::bitset<8>(orig)[7];
-    flags[Flag::Negative] = std::bitset<8>(result)[7];
-    flags[Flag::Zero] = A == 0;
+    flags_carry = orig & 0x80;
+    flags_negative = result & 0x80;
+    flags_zero = A == 0;
 }
 
 void CPU::update_cmp_flags(unsigned char mem)
 {
     unsigned char result = A - mem;
-    flags[Flag::Carry] = A >= mem;
-    flags[Flag::Zero] = A == mem;
-    flags[Flag::Negative] = std::bitset<8>(result)[7];
+    flags_carry = A >= mem;
+    flags_zero = A == mem;
+    flags_negative = result & 0x80;
 }
 
 void CPU::update_cpx_flags(unsigned char mem)
 {
     unsigned short result = (signed char)X - (signed char)mem;
-    flags[Flag::Carry] = X >= mem;
-    flags[Flag::Zero] = X == mem;
-    flags[Flag::Negative] = std::bitset<8>(result)[7];
+    flags_carry = X >= mem;
+    flags_zero = X == mem;
+    flags_negative = result & 0x80;
 }
 
 void CPU::update_cpy_flags(unsigned char mem)
 {
     unsigned char result = Y - mem;
-    flags[Flag::Carry] = Y >= mem;
-    flags[Flag::Zero] = Y == mem;
-    flags[Flag::Negative] = std::bitset<8>(result)[7];
+    flags_carry = Y >= mem;
+    flags_zero = Y == mem;
+    flags_negative = result & 0x80;
 }
 
 void CPU::update_dec_flags(unsigned char result)
 {
-    flags[Flag::Zero] = result == 0;
-    flags[Flag::Negative] = std::bitset<8>(result)[7];
+    flags_zero = result == 0;
+    flags_negative = result & 0x80;
 }
 
 void CPU::update_eor_flags()
 {
-    flags[Flag::Zero] = A == 0;
-    flags[Flag::Negative] = std::bitset<8>(A)[7];
+    flags_zero = A == 0;
+    flags_negative = A & 0x80;
 }
 
 void CPU::update_inc_flags(unsigned char result)
 {
-    flags[Flag::Zero] = result == 0;
-    flags[Flag::Negative] = std::bitset<8>(result)[7];
+    flags_zero = result == 0;
+    flags_negative = result & 0x80;
 }
 
 void CPU::update_ldx_flags()
 {
-    flags[Flag::Zero] = X == 0;
-    flags[Flag::Negative] = std::bitset<8>(X)[7];
+    flags_zero = X == 0;
+    flags_negative = X & 0x80;
 }
 
 void CPU::update_ldy_flags()
 {
-    flags[Flag::Zero] = Y == 0;
-    flags[Flag::Negative] = std::bitset<8>(Y)[7];
+    flags_zero = Y == 0;
+    flags_negative = Y & 0x80;
 }
 
 void CPU::update_lsr_flags(unsigned char orig, unsigned char result)
 {
-    flags[Flag::Carry] = std::bitset<8>(orig)[0];
-    flags[Flag::Zero] = result == 0;
-    flags[Flag::Negative] = std::bitset<8>(result)[7];
+    flags_carry = orig & 0x1;
+    flags_zero = result == 0;
+    flags_negative = result & 0x80;
 }
 
 void CPU::update_ora_flags()
 {
-    flags[Flag::Zero] = A == 0;
-    flags[Flag::Negative] = std::bitset<8>(A)[7];
+    flags_zero = A == 0;
+    flags_negative = A & 0x80;
 }
 
 void CPU::update_rol_flags(unsigned char orig, unsigned char result)
 {
-    flags[Flag::Carry] = std::bitset<8>(orig)[7];
-    flags[Flag::Zero] = A == 0;
-    flags[Flag::Negative] = std::bitset<8>(result)[7];
+    flags_carry = orig & 0x80;
+    flags_zero = A == 0;
+    flags_negative = result & 0x80;
 }
 
 void CPU::update_ror_flags(unsigned char orig, unsigned char result)
 {
-    flags[Flag::Carry] = std::bitset<8>(orig)[0];
-    flags[Flag::Zero] = A == 0;
-    flags[Flag::Negative] = std::bitset<8>(result)[7];
+    flags_carry = orig & 0x1;
+    flags_zero = A == 0;
+    flags_negative = result & 0x80;
 }
 
 void CPU::do_cycle()
@@ -147,23 +152,21 @@ void CPU::do_cycle()
     cycle++;
     if(cycle % 100000 == 0)
         std::cout << "Doing cycle: " << cycle << std::endl;
-    //std::cout << "Clocks remaining: " << clocks_remain << std::endl;
     if(NMI && clocks_remain < 0)
     {
-        std::cout << "DOING NMI: JUMPING TO 0x" << std::hex << (read_memory(0xfffb) << 8) + read_memory(0xfffa) << std::dec << std::endl;
         push(PC >> 8);
         push(PC & 0xff);
         std::bitset<8> status{};
-        status[0] = flags[Flag::Carry];
-        status[1] = flags[Flag::Zero];
-        status[2] = flags[Flag::Int_Disable];
-        status[3] = flags[Flag::Dec_Mode];
+        status[0] = flags_carry;
+        status[1] = flags_zero;
+        status[2] = flags_int_disable;
+        status[3] = flags_dec_mode;
         status[4] = 0;
         status[5] = 1;
-        status[6] = flags[Flag::Overflow];
-        status[7] = flags[Flag::Negative];
+        status[6] = flags_overflow;
+        status[7] = flags_negative;
         push((unsigned char)status.to_ulong());
-        flags[Flag::Int_Disable] = 1;
+        flags_int_disable = 1;
         PC = (read_memory(0xfffb) << 8) + read_memory(0xfffa);
         NMI = false;
         ppu->NMI_occurred = false;
@@ -174,19 +177,12 @@ void CPU::do_cycle()
     {
         unsigned char buffer[256];
         read_memory_chunk((ppu->OAMDMA << 8) & 0xff00, 256, buffer);
-        std::cout << "[PPU] PERFORMING OAM DMA FROM 0x" << std::hex << (unsigned short)((ppu->OAMDMA << 8) & 0xff00) << std::dec << std::endl;
         std::copy(std::begin(buffer), std::end(buffer), std::begin(ppu->OAM));
         oam_write_pending = false;
         return;
     }
     auto opcode = read_memory(PC);
     //dump_registers();
-    //std::cout << "Current opcode: " << std::hex << (unsigned short) opcode << std::dec << std::endl;
-    if(clocks_remain == 0)
-    {
-        std::cout << std::hex << PC << " " << (unsigned short)read_memory(PC) << std::dec;
-        dump_registers();
-    }
     switch(opcode)
     {
         case 0xA9: // LDA IMMEDIATE
@@ -288,7 +284,6 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 unsigned short zp_address = get_address_from_zp() + Y;
-                //std::cout << "[LDA] READING FROM ADDRESS 0x" << std::hex << zp_address << std::dec << std::endl;
                 //unsigned short address = (read_memory(zp_address + 1) << 8) + (read_memory(zp_address)); // Address _before_ Y is added
                 A = read_memory(zp_address);
                 PC += 2;
@@ -301,7 +296,7 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 // From http://stackoverflow.com/questions/29193303/6502-emulation-proper-way-to-implement-adc-and-sbc
-                unsigned int result = A + read_memory(PC + 1) + flags[Flag::Carry];
+                unsigned int result = A + read_memory(PC + 1) + flags_carry;
                 unsigned char arg = read_memory(PC + 1);                    
                 update_adc_flags(arg, result);
                 A = result & 0xff;     
@@ -314,7 +309,7 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 unsigned char arg = read_memory(read_memory(PC + 1));
-                unsigned int result = A + arg + flags[Flag::Carry];
+                unsigned int result = A + arg + flags_carry;
                 update_adc_flags(arg, result);
                 A = result % 256;   
                 PC += 2;
@@ -327,7 +322,7 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 unsigned char arg = read_memory((read_memory(PC+1) + X) % 256);
-                unsigned int result = A + arg + flags[Flag::Carry];
+                unsigned int result = A + arg + flags_carry;
                 update_adc_flags(arg, result);
                 A = result % 256;
                 PC += 2;
@@ -341,7 +336,7 @@ void CPU::do_cycle()
             {
                 unsigned short address = get_absolute_address();
                 unsigned char arg = read_memory(address);
-                unsigned int result = A + arg + flags[Flag::Carry];
+                unsigned int result = A + arg + flags_carry;
                 update_adc_flags(arg, result);
                 A = result % 256;               
                 PC += 3;
@@ -360,7 +355,7 @@ void CPU::do_cycle()
             {
                 unsigned short address = get_absolute_address() + X;
                 unsigned char arg = read_memory(address);
-                unsigned int result = A + arg + flags[Flag::Carry];
+                unsigned int result = A + arg + flags_carry;
                 update_adc_flags(arg, result);
                 A = result % 256;
                 PC += 3;
@@ -379,7 +374,7 @@ void CPU::do_cycle()
             {
                 unsigned short address = get_absolute_address() + Y;
                 unsigned char arg = read_memory(address);
-                unsigned int result = A + arg + flags[Flag::Carry];
+                unsigned int result = A + arg + flags_carry;
                 update_adc_flags(arg, result);
                 A = result % 256;              
                 PC += 3;
@@ -392,7 +387,7 @@ void CPU::do_cycle()
             {
                 unsigned short address = get_indirect_x_address();
                 unsigned char arg = read_memory(address);
-                unsigned int result = A + arg + flags[Flag::Carry];
+                unsigned int result = A + arg + flags_carry;
                 update_adc_flags(arg, result);   
                 A = result % 256;             
                 PC += 2;
@@ -411,7 +406,7 @@ void CPU::do_cycle()
             {
                 unsigned short address = get_address_from_zp() + Y;
                 unsigned char arg = read_memory(address);
-                unsigned int result = A + arg + flags[Flag::Carry];
+                unsigned int result = A + arg + flags_carry;
                 update_adc_flags(arg, result);   
                 A = result % 256;      
                 PC += 2;
@@ -588,7 +583,7 @@ void CPU::do_cycle()
                 // Not positive on the timing here
                 clocks_remain = 1;
                 unsigned short branch_addr = PC + (signed char)read_memory(PC + 1);
-                bool branch_succeed = flags[Flag::Carry] == 0;
+                bool branch_succeed = flags_carry == 0;
                 if(branch_succeed)
                     clocks_remain += 1;
                 if(PC/256 < branch_addr/256 && branch_succeed) // Page boundary crossed
@@ -596,7 +591,7 @@ void CPU::do_cycle()
             }
             else if(clocks_remain == 0)
             {
-                if(flags[Flag::Carry] == 0)
+                if(flags_carry == 0)
                     PC += (signed char)read_memory(PC + 1)+2;
                 else
                     PC += 2;
@@ -608,7 +603,7 @@ void CPU::do_cycle()
                 // Not positive on the timing here
                 clocks_remain = 1;
                 unsigned short branch_addr = PC + (signed char)read_memory(PC + 1);
-                bool branch_succeed = flags[Flag::Carry] == 1;
+                bool branch_succeed = flags_carry == 1;
                 if(branch_succeed)
                     clocks_remain += 1;
                 if(PC/256 < branch_addr/256 && branch_succeed) // Page boundary crossed
@@ -616,7 +611,7 @@ void CPU::do_cycle()
             }
             else if(clocks_remain == 0)
             {
-                if(flags[Flag::Carry] == 1)
+                if(flags_carry == 1)
                     PC += (signed char)read_memory(PC + 1) + 2;
                 else
                     PC += 2;
@@ -628,7 +623,7 @@ void CPU::do_cycle()
                 // Not positive on the timing here
                 clocks_remain = 1;
                 unsigned short branch_addr = PC + (signed char)read_memory(PC + 1);
-                bool branch_succeed = flags[Flag::Zero] == 1;
+                bool branch_succeed = flags_zero == 1;
                 if(branch_succeed)
                     clocks_remain += 1;
                 if(PC/256 < branch_addr/256 && branch_succeed) // Page boundary crossed
@@ -636,7 +631,7 @@ void CPU::do_cycle()
             }
             else if(clocks_remain == 0)
             {
-                if(flags[Flag::Zero] == 1)
+                if(flags_zero == 1)
                     PC += (signed char)read_memory(PC + 1) + 2;
                 else
                     PC += 2;
@@ -649,9 +644,9 @@ void CPU::do_cycle()
             {
                 unsigned short val = read_memory(read_memory(PC+1));
                 unsigned char result = A & val;
-                flags[Flag::Zero] = result == 0;
-                flags[Flag::Overflow] = std::bitset<8>(val)[6];
-                flags[Flag::Negative] = std::bitset<8>(val)[7];
+                flags_zero = result == 0;
+                flags_overflow = val & 0x40;
+                flags_negative = val & 0x80;
                 PC += 2;
             }
             break;
@@ -662,9 +657,9 @@ void CPU::do_cycle()
             {
                 unsigned short val = read_memory(get_absolute_address());
                 unsigned char result = A & val;
-                flags[Flag::Zero] = result == 0;
-                flags[Flag::Overflow] = std::bitset<8>(val)[6];
-                flags[Flag::Negative] = std::bitset<8>(val)[7];
+                flags_zero = result == 0;
+                flags_overflow = val & 0x40;
+                flags_negative = val & 0x80;
                 PC += 3;
             }
             break;
@@ -674,7 +669,7 @@ void CPU::do_cycle()
                 // Not positive on the timing here
                 clocks_remain = 1;
                 unsigned short branch_addr = PC + (signed char)read_memory(PC + 1);
-                bool branch_succeed = flags[Flag::Negative] == 1;
+                bool branch_succeed = flags_negative == 1;
                 if(branch_succeed)
                     clocks_remain += 1;
                 if(PC/256 < branch_addr/256 && branch_succeed) // Page boundary crossed
@@ -682,7 +677,7 @@ void CPU::do_cycle()
             }
             else if(clocks_remain == 0)
             {
-                if(flags[Flag::Negative] == 1)
+                if(flags_negative == 1)
                     PC += (signed char)read_memory(PC + 1) + 2;
                 else
                     PC += 2;
@@ -694,7 +689,7 @@ void CPU::do_cycle()
                 // Not positive on the timing here
                 clocks_remain = 1;
                 unsigned short branch_addr = PC + (signed char)read_memory(PC + 1);
-                bool branch_succeed = flags[Flag::Zero] == 0;
+                bool branch_succeed = flags_zero == 0;
                 if(branch_succeed)
                     clocks_remain += 1;
                 if(PC/256 < branch_addr/256 && branch_succeed) // Page boundary crossed
@@ -702,7 +697,7 @@ void CPU::do_cycle()
             }
             else if(clocks_remain == 0)
             {
-                if(flags[Flag::Zero] == 0)
+                if(flags_zero == 0)
                     PC += (signed char)read_memory(PC + 1) + 2;
                 else
                     PC += 2;
@@ -714,7 +709,7 @@ void CPU::do_cycle()
                 // Not positive on the timing here
                 clocks_remain = 1;
                 unsigned short branch_addr = PC + (signed char)read_memory(PC + 1);
-                bool branch_succeed = flags[Flag::Negative] == 0;
+                bool branch_succeed = flags_negative == 0;
                 if(branch_succeed)
                     clocks_remain += 1;
                 if(PC/256 < branch_addr/256 && branch_succeed) // Page boundary crossed
@@ -722,7 +717,7 @@ void CPU::do_cycle()
             }
             else if(clocks_remain == 0)
             {
-                if(flags[Flag::Negative] == 0)
+                if(flags_negative == 0)
                     PC += (signed char)read_memory(PC + 1) + 2;
                 else
                     PC += 2;
@@ -736,16 +731,16 @@ void CPU::do_cycle()
                 push((PC+2) >> 8);
                 push((PC+2) & 0xff);
                 std::bitset<8> status{};
-                status[0] = flags[Flag::Carry];
-                status[1] = flags[Flag::Zero];
-                status[2] = flags[Flag::Int_Disable];
-                status[3] = flags[Flag::Dec_Mode];
+                status[0] = flags_carry;
+                status[1] = flags_zero;
+                status[2] = flags_int_disable;
+                status[3] = flags_dec_mode;
                 status[4] = 1;
                 status[5] = 1;
-                status[6] = flags[Flag::Overflow];
-                status[7] = flags[Flag::Negative];
+                status[6] = flags_overflow;
+                status[7] = flags_negative;
                 push((unsigned char)status.to_ulong());
-                flags[Flag::Int_Disable] = 1;
+                flags_int_disable = 1;
                 PC = (read_memory(0xffff) << 8) + read_memory(0xfffe);
             }
             break;
@@ -755,7 +750,7 @@ void CPU::do_cycle()
                 // Not positive on the timing here
                 clocks_remain = 1;
                 unsigned short branch_addr = PC + (signed char)read_memory(PC + 1);
-                bool branch_succeed = flags[Flag::Overflow] == 0;
+                bool branch_succeed = flags_overflow == 0;
                 if(branch_succeed)
                     clocks_remain += 1;
                 if(PC/256 < branch_addr/256 && branch_succeed) // Page boundary crossed
@@ -763,7 +758,7 @@ void CPU::do_cycle()
             }
             else if(clocks_remain == 0)
             {
-                if(flags[Flag::Overflow] == 0)
+                if(flags_overflow == 0)
                     PC += (signed char)read_memory(PC + 1) + 2;
                 else
                     PC += 2;
@@ -775,7 +770,7 @@ void CPU::do_cycle()
                 // Not positive on the timing here
                 clocks_remain = 1;
                 unsigned short branch_addr = PC + (signed char)read_memory(PC + 1);
-                bool branch_succeed = flags[Flag::Overflow] == 1;
+                bool branch_succeed = flags_overflow == 1;
                 if(branch_succeed)
                     clocks_remain += 1;
                 if(PC/256 < branch_addr/256 && branch_succeed) // Page boundary crossed
@@ -784,7 +779,7 @@ void CPU::do_cycle()
             }
             else if(clocks_remain == 0)
             {
-                if(flags[Flag::Overflow] == 1)
+                if(flags_overflow == 1)
                     PC += (signed char)read_memory(PC + 1) + 2;
                 else
                     PC += 2;
@@ -795,7 +790,7 @@ void CPU::do_cycle()
                 clocks_remain = 1;
             else if(clocks_remain == 0)
             {
-                flags[Flag::Carry] = 0;
+                flags_carry = 0;
                 PC += 1;
             }
             break;
@@ -804,7 +799,7 @@ void CPU::do_cycle()
                 clocks_remain = 1;
             else if(clocks_remain == 0)
             {
-                flags[Flag::Dec_Mode] = 0;
+                flags_dec_mode = 0;
                 PC += 1;
             }
             break;
@@ -813,7 +808,7 @@ void CPU::do_cycle()
                 clocks_remain = 1;
             else if(clocks_remain == 0)
             {
-                flags[Flag::Int_Disable] = 0;
+                flags_int_disable = 0;
                 PC += 1;
 //                std::cout << "CLI" << std::endl;
             }
@@ -823,7 +818,7 @@ void CPU::do_cycle()
                 clocks_remain = 1;
             else if(clocks_remain == 0)
             {
-                flags[Flag::Overflow] = 0;
+                flags_overflow = 0;
                 PC += 1;
             }
             break;
@@ -1031,8 +1026,8 @@ void CPU::do_cycle()
                 unsigned char result = X - 1;
                 X = result;
                 PC += 1;
-                flags[Flag::Zero] = result == 0;
-                flags[Flag::Negative] = std::bitset<8>(result)[7];
+                flags_zero = result == 0;
+                flags_negative = result & 0x80;
             }
             break;
         case 0x88: // DEY
@@ -1043,8 +1038,8 @@ void CPU::do_cycle()
                 unsigned char result = Y - 1;
                 Y = result;
                 PC += 1;
-                flags[Flag::Zero] = result == 0;
-                flags[Flag::Negative] = std::bitset<8>(result)[7];
+                flags_zero = result == 0;
+                flags_negative = result & 0x80;
             }
             break;
         case 0x49: // EOR IMMEDIATE
@@ -1203,8 +1198,8 @@ void CPU::do_cycle()
             {
                 X += 1;
                 PC += 1;
-                flags[Flag::Zero] = X == 0;
-                flags[Flag::Negative] = std::bitset<8>(X)[7];
+                flags_zero = X == 0;
+                flags_negative = X & 0x80;
             }
             break;
         case 0xC8: // INY
@@ -1214,8 +1209,8 @@ void CPU::do_cycle()
             {
                 Y += 1;
                 PC += 1;
-                flags[Flag::Zero] = Y == 0;
-                flags[Flag::Negative] = std::bitset<8>(Y)[7];
+                flags_zero = Y == 0;
+                flags_negative = Y & 0x80;
             }
             break;
         case 0x4C: // JMP ABSOLUTE
@@ -1553,14 +1548,14 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 std::bitset<8> status{};
-                status[0] = flags[Flag::Carry];
-                status[1] = flags[Flag::Zero];
-                status[2] = flags[Flag::Int_Disable];
-                status[3] = flags[Flag::Dec_Mode];
+                status[0] = flags_carry;
+                status[1] = flags_zero;
+                status[2] = flags_int_disable;
+                status[3] = flags_dec_mode;
                 status[4] = 1;
                 status[5] = 1;
-                status[6] = flags[Flag::Overflow];
-                status[7] = flags[Flag::Negative];
+                status[6] = flags_overflow;
+                status[7] = flags_negative;
                 push((unsigned char)status.to_ulong());
                 PC += 1;
             }
@@ -1571,8 +1566,8 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 A = pull();
-                flags[Flag::Zero] = A == 0;
-                flags[Flag::Negative] = std::bitset<8>(A)[7];
+                flags_zero = A == 0;
+                flags_negative = (A & 0x80);
                 PC += 1;
             }
             break;
@@ -1582,14 +1577,13 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 std::bitset<8> status(pull());
-                flags[Flag::Carry] = status[0];
-                flags[Flag::Zero] = status[1];
-                flags[Flag::Int_Disable] = status[2];
-                flags[Flag::Dec_Mode] = status[3];
-                flags[4] = status[4];
-                flags[5] = status[5];
-                flags[Flag::Overflow] = status[6];
-                flags[Flag::Negative] = status[7];
+                flags_carry = status[0];
+                flags_zero = status[1];
+                flags_int_disable = status[2];
+                flags_dec_mode = status[3];
+                flags_break = status[4];
+                flags_overflow = status[6];
+                flags_negative = status[7];
                 PC += 1;
             }
             break;
@@ -1599,7 +1593,7 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 unsigned char orig = A;
-                unsigned char result = ((orig << 1) | flags[Flag::Carry]) & 0xff;
+                unsigned char result = ((orig << 1) | flags_carry) & 0xff;
                 A = result;
                 PC += 1;
                 update_rol_flags(orig, result);
@@ -1612,7 +1606,7 @@ void CPU::do_cycle()
             {
                 unsigned char addr = read_memory(PC + 1);
                 unsigned char orig = read_memory(addr);
-                unsigned char result = (orig << 1) | flags[Flag::Carry];
+                unsigned char result = (orig << 1) | flags_carry;
                 write_memory(addr, result);
                 PC += 2;
                 update_rol_flags(orig, result);
@@ -1625,7 +1619,7 @@ void CPU::do_cycle()
             {
                 unsigned char addr = (read_memory(PC + 1) + X) % 256;
                 unsigned char orig = read_memory(addr);
-                unsigned char result = (orig << 1) | flags[Flag::Carry];
+                unsigned char result = (orig << 1) | flags_carry;
                 write_memory(addr, result);
                 PC += 2;
                 update_rol_flags(orig, result);
@@ -1638,7 +1632,7 @@ void CPU::do_cycle()
             {
                 unsigned short addr = get_absolute_address();
                 unsigned char orig = read_memory(addr);
-                unsigned char result = (orig << 1) | flags[Flag::Carry];
+                unsigned char result = (orig << 1) | flags_carry;
                 write_memory(addr, result);
                 PC += 3;
                 update_rol_flags(orig, result);
@@ -1651,7 +1645,7 @@ void CPU::do_cycle()
             {
                 unsigned short addr = get_absolute_address() + X;
                 unsigned char orig = read_memory(addr);
-                unsigned char result = (orig << 1) | flags[Flag::Carry];
+                unsigned char result = (orig << 1) | flags_carry;
                 write_memory(addr, result);
                 PC += 3;
                 update_rol_flags(orig, result);
@@ -1663,7 +1657,7 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 unsigned char orig = A;
-                unsigned char result = (orig >> 1) | ((flags[Flag::Carry] << 7) & 0x80);
+                unsigned char result = (orig >> 1) | ((flags_carry << 7) & 0x80);
                 A = result;
                 PC += 1;
                 update_ror_flags(orig, result);
@@ -1676,7 +1670,7 @@ void CPU::do_cycle()
             {
                 unsigned char addr = read_memory(PC + 1);
                 unsigned char orig = read_memory(addr);
-                unsigned char result = (orig >> 1) | ((flags[Flag::Carry] << 7) & 0x80);
+                unsigned char result = (orig >> 1) | ((flags_carry << 7) & 0x80);
                 write_memory(addr, result);
                 PC += 2;
                 update_ror_flags(orig, result);
@@ -1689,7 +1683,7 @@ void CPU::do_cycle()
             {
                 unsigned char addr = (read_memory(PC + 1) + X) % 256;
                 unsigned char orig = read_memory(addr);
-                unsigned char result = (orig >> 1) | ((flags[Flag::Carry] << 7) & 0x80);
+                unsigned char result = (orig >> 1) | ((flags_carry << 7) & 0x80);
                 write_memory(addr, result);
                 PC += 2;
                 update_ror_flags(orig, result);
@@ -1702,7 +1696,7 @@ void CPU::do_cycle()
             {
                 unsigned short addr = get_absolute_address();
                 unsigned char orig = read_memory(addr);
-                unsigned char result = (orig >> 1) | ((flags[Flag::Carry] << 7) & 0x80);
+                unsigned char result = (orig >> 1) | ((flags_carry << 7) & 0x80);
                 //std::cout << "[ROR] READING FROM 0x" << std::hex << addr << ": " << orig << " BECOMES " << result << std::dec << std::endl;
                 write_memory(addr, result);
                 PC += 3;
@@ -1716,7 +1710,7 @@ void CPU::do_cycle()
             {
                 unsigned short addr = get_absolute_address() + X;
                 unsigned char orig = read_memory(addr);
-                unsigned char result = (orig >> 1) | ((flags[Flag::Carry] << 7) & 0x80);
+                unsigned char result = (orig >> 1) | ((flags_carry << 7) & 0x80);
                 write_memory(addr, result);
                 PC += 3;
                 update_ror_flags(orig, result);
@@ -1731,12 +1725,12 @@ void CPU::do_cycle()
                 unsigned char return_low = pull();
                 unsigned char return_high = pull();
                 PC = ((unsigned short)return_high << 8) + return_low;
-                flags[Flag::Carry] = status[0];
-                flags[Flag::Zero] = status[1];
-                flags[Flag::Int_Disable] = status[2];
-                flags[Flag::Dec_Mode] = status[3];
-                flags[Flag::Overflow] = status[6];
-                flags[Flag::Negative] = status[7];
+                flags_carry = status[0];
+                flags_zero = status[1];
+                flags_int_disable = status[2];
+                flags_dec_mode = status[3];
+                flags_overflow = status[6];
+                flags_negative = status[7];
                 //std::cout << "[CPU] RETURNING FROM INTERRUPT: JUMPING TO 0x" << std::hex << PC << std::dec << std::endl;
             }
             break;
@@ -1757,7 +1751,7 @@ void CPU::do_cycle()
             {
                 // From http://stackoverflow.com/questions/29193303/6502-emulation-proper-way-to-implement-adc-and-sbc
                 unsigned char arg = ~read_memory(PC + 1);                   
-                unsigned short result = A + arg + (unsigned short)flags[Flag::Carry];
+                unsigned short result = A + arg + (unsigned short)flags_carry;
                 update_adc_flags(arg, result);                  
                 A = result % 256;
                 PC += 2;
@@ -1770,7 +1764,7 @@ void CPU::do_cycle()
             {
                 unsigned char arg = ~read_memory(read_memory(PC + 1));
                 
-                unsigned int result = (unsigned short)A + (unsigned short)arg + (unsigned short)flags[Flag::Carry];
+                unsigned int result = (unsigned short)A + (unsigned short)arg + (unsigned short)flags_carry;
                 update_adc_flags(arg, result);   
                 A = result % 256;               
                 PC += 2;
@@ -1782,7 +1776,7 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 unsigned char arg = ~read_memory((read_memory(PC+1) + X) % 256);
-                unsigned int result = A + arg + flags[Flag::Carry];
+                unsigned int result = A + arg + flags_carry;
                 update_adc_flags(arg, result);   
                 A = result % 256;            
                 PC += 2;
@@ -1795,7 +1789,7 @@ void CPU::do_cycle()
             {
                 unsigned short address = get_absolute_address();
                 unsigned char arg = ~read_memory(address);
-                unsigned int result = A + arg + flags[Flag::Carry];
+                unsigned int result = A + arg + flags_carry;
                 update_adc_flags(arg, result);   
                 A = result % 256;             
                 PC += 3;
@@ -1814,7 +1808,7 @@ void CPU::do_cycle()
             {
                 unsigned short address = get_absolute_address() + X;
                 unsigned char arg = ~read_memory(address);
-                unsigned int result = A + arg + flags[Flag::Carry];
+                unsigned int result = A + arg + flags_carry;
                 update_adc_flags(arg, result);  
                 A = result % 256;              
                 PC += 3;
@@ -1833,7 +1827,7 @@ void CPU::do_cycle()
             {
                 unsigned short address = get_absolute_address() + Y;
                 unsigned char arg = ~read_memory(address);
-                unsigned int result = A + arg + flags[Flag::Carry];
+                unsigned int result = A + arg + flags_carry;
                 //std::cout << "[SBC] READING FROM " << std::hex << address << ": GOT " << ~arg << std::dec << std::endl;
                 update_adc_flags(arg, result);                             
                 A = result % 256;
@@ -1847,7 +1841,7 @@ void CPU::do_cycle()
             {
                 unsigned short address = get_indirect_x_address();
                 unsigned char arg = ~read_memory(address);
-                unsigned int result = A + arg + flags[Flag::Carry];
+                unsigned int result = A + arg + flags_carry;
                 update_adc_flags(arg, result);                  
                 A = result % 256;               
                 PC += 2;
@@ -1866,7 +1860,7 @@ void CPU::do_cycle()
             {
                 unsigned short address = get_address_from_zp() + Y;
                 unsigned char arg = ~read_memory(address);
-                unsigned int result = A + arg + flags[Flag::Carry];
+                unsigned int result = A + arg + flags_carry;
                 update_adc_flags(arg, result);                  
                 A = result % 256;              
                 PC += 2;
@@ -1877,7 +1871,7 @@ void CPU::do_cycle()
                 clocks_remain = 1;
             else if(clocks_remain == 0)
             {
-                flags[Flag::Carry] = 1;
+                flags_carry = 1;
                 PC += 1;
             }
             break;
@@ -1886,7 +1880,7 @@ void CPU::do_cycle()
                 clocks_remain = 1;
             else if(clocks_remain == 0)
             {
-                flags[Flag::Dec_Mode] = 1;
+                flags_dec_mode = 1;
                 PC += 1;
             }
             break;
@@ -1895,7 +1889,7 @@ void CPU::do_cycle()
                 clocks_remain = 1;
             else if(clocks_remain == 0)
             {
-                flags[Flag::Int_Disable] = 1;
+                flags_int_disable = 1;
                 PC += 1;
             }
             break;
@@ -2028,8 +2022,8 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 X = A;
-                flags[Flag::Zero] = X == 0;
-                flags[Flag::Negative] = std::bitset<8>(X)[7];
+                flags_zero = X == 0;
+                flags_negative = X & 0x80;
                 PC += 1;
             }
             break;
@@ -2039,8 +2033,8 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 Y = A;
-                flags[Flag::Zero] = Y == 0;
-                flags[Flag::Negative] = std::bitset<8>(Y)[7];
+                flags_zero = Y == 0;
+                flags_negative = Y & 0x80;
                 PC += 1;
             }
             break;
@@ -2050,8 +2044,8 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 X = S;
-                flags[Flag::Zero] = X == 0;
-                flags[Flag::Negative] = std::bitset<8>(X)[7];
+                flags_zero = X == 0;
+                flags_negative = X & 0x80;
                 PC += 1;
             }
             break;
@@ -2061,8 +2055,8 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 A = X;
-                flags[Flag::Zero] = A == 0;
-                flags[Flag::Negative] = std::bitset<8>(A)[7];
+                flags_zero = A == 0;
+                flags_negative = A & 0x80;
                 PC += 1;
             }
             break;
@@ -2081,8 +2075,8 @@ void CPU::do_cycle()
             else if(clocks_remain == 0)
             {
                 A = Y;
-                flags[Flag::Zero] = A == 0;
-                flags[Flag::Negative] = std::bitset<8>(A)[7];
+                flags_zero = A == 0;
+                flags_negative = A & 0x80;
                 PC += 1;
             }
             break;

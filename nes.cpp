@@ -78,9 +78,11 @@ int main(int argc, char *argv[])
         ppu.do_cycle();
         ppu.do_cycle();
         ppu.do_cycle();
-        cpu.do_cycle();        
+        cpu.do_cycle();   
+        
         if(cpu.cycle % 40000 == 0)
         {
+            window.setTitle(std::to_string(ppu.frame));    
             std::ofstream out("dump", std::ios::out | std::ios::binary);
             unsigned char ppu_buffer[0x4000];
             ppu.dump_memory(ppu_buffer);
@@ -103,13 +105,14 @@ int main(int argc, char *argv[])
             window.draw(sprite);
 
             window.display();
+            sf::Event event;
+            while(window.pollEvent(event))
+            {
+                if(event.type == sf::Event::Closed)
+                    window.close();
+            }
         }
-        sf::Event event;
-        while(window.pollEvent(event))
-        {
-            if(event.type == sf::Event::Closed)
-                window.close();
-        }
+
 
     }
 }

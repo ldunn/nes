@@ -70,6 +70,47 @@ void PPU::do_cycle()
     switch(scanline)
     {
         case 0 ... 239:
+            if(dot == 260)
+            {
+                std::fill(sprite_dots, sprite_dots+256, 0);
+                for(int i = 0; i < 64; i++)
+                {
+                    unsigned char *oam_data = &(OAM[i*4]);
+                    unsigned char x = oam_data[3];
+                    unsigned char y = oam_data[0];
+                    unsigned char pixel_on;
+                    if(scanline+1 > y && scanline+1 <= y + 8)
+                    {
+                        unsigned char palette_sel = (oam_data[2] & 0x3) + 4;
+                        unsigned char tile = oam_data[1];
+                        unsigned char pattern_table_spr = std::bitset<8>(PPUCTRL)[3];
+                        unsigned char low_byte = pattern_tables[pattern_table_spr][(tile<<4)+(scanline - oam_data[0])];
+                        unsigned char high_byte = pattern_tables[pattern_table_spr][(tile<<4)+((scanline - oam_data[0]) + 8)];  
+                        if(oam_data[2] & 0x40) // Horizontal flip
+                        {
+                            for(int j = 7; j >= 0; j--)
+                            {
+                                pixel_on = ((low_byte >> (7-j)) & 0x1) + ((high_byte >> (7-j)) & 0x1);
+                                if(pixel_on)
+                                    sprite_dots[7-j+oam_data[3]] = palette_sel*4+pixel_on;
+                                else
+                                    sprite_dots[7-j+oam_data[3]] = 0;
+                            }
+                        }
+                        else
+                        {
+                            for(int j = 0; j < 8; j++)
+                            {
+                                pixel_on = ((low_byte >> (7-j)) & 0x1) + ((high_byte >> (7-j)) & 0x1);
+                                if(pixel_on)
+                                    sprite_dots[j+oam_data[3]] = palette_sel*4+pixel_on;
+                                else
+                                    sprite_dots[j+oam_data[3]] = 0;                  
+                            }
+                        }
+                    }
+                }
+            }
             if(dot < 256)
             {
                 //std::cout << "[PPU] DOING VISIBLE SCANLINE " << scanline << " AT DOT " << dot << std::endl;
@@ -94,13 +135,9 @@ void PPU::do_cycle()
                 else
                     attr_data = (attr_byte >> 6) & 0x3;
 
-                /*unsigned char low_byte = pattern_tables[pattern_table][0x500+y%8];
-                unsigned char high_byte = pattern_tables[pattern_table][0x508+y%8];*/
                 unsigned char pixel_on = ((low_byte >> (7-i)) & 0x1) + ((high_byte >> (7-i)) & 0x1);
                 if(pixel_on != 0)
                 {
-                    std::cout << "ATTR: " << (int)attr_data << " PIXEL_ON : " << (int)pixel_on << " DRAWING PIXEL WITH COLOR " << (int)palette_colors[palette[(attr_data*4 + pixel_on)]*3] << 
-                        (int)palette_colors[palette[(attr_data*4 + pixel_on)]*3+1] << (int)palette_colors[palette[(attr_data*4 + pixel_on)]*3+2] << std::endl;
                     buffer[(y*32*8 + x*8 + i)*4] = palette_colors[palette[(attr_data*4 + pixel_on)]*3];
                     buffer[(y*32*8 + x*8 + i)*4 + 1] = palette_colors[palette[(attr_data*4 + pixel_on)]*3+1];
                     buffer[(y*32*8 + x*8 + i)*4 + 2] = palette_colors[palette[(attr_data*4 + pixel_on)]*3+2];
@@ -113,38 +150,15 @@ void PPU::do_cycle()
                     buffer[(y*32*8 + x*8 + i)*4 + 2] = palette_colors[palette[0]*3+2];
                     buffer[(y*32*8 + x*8 + i)*4 + 3] = 255;
                 }
-                for(int j = 0; j < 64; j++)
+                if(sprite_dots[dot] != 0)
                 {
-                    unsigned char *oam_data = &(OAM[j*4]);
-                    if(y-1 >= oam_data[0] && y-1 < oam_data[0] + 8 && dot >= oam_data[3] && dot < (unsigned int)oam_data[3] + 8)
-                    {
-                        i = dot - oam_data[3];
-                        unsigned char palette_sel = (oam_data[2] & 0x3) + 4;
-                        unsigned char tile = oam_data[1];
-                        unsigned char pattern_table_spr = std::bitset<8>(PPUCTRL)[3];
-                        low_byte = pattern_tables[pattern_table_spr][(tile<<4)+(y - oam_data[0]-1) % 8];
-                        high_byte = pattern_tables[pattern_table_spr][(tile<<4)+((y - oam_data[0]-1) % 8) + 8];
-                        if(std::bitset<8>(oam_data[2])[6]) // Horizontal flip
-                            pixel_on = ((low_byte >> i) & 0x1) + ((high_byte >> i) & 0x1);
-                        else
-                            pixel_on = ((low_byte >> (7-i)) & 0x1) + ((high_byte >> (7-i)) & 0x1);
-                        if(pixel_on != 0)
-                        {
-                            std::cout << "[PPU] DRAWING WITH BYTES " << (int)low_byte << " " << (int)high_byte << ": i = " << i << std::endl;
-                            buffer[(y*32*8 + dot)*4] = palette_colors[palette[palette_sel*4 + pixel_on]*3];
-                            buffer[(y*32*8 + dot)*4 + 1] = palette_colors[palette[palette_sel*4 + pixel_on]*3+1];
-                            buffer[(y*32*8 + dot)*4 + 2] = palette_colors[palette[palette_sel*4 + pixel_on]*3+2];
-                            buffer[(y*32*8 + dot)*4 + 3] = 255;
-                        }
-                        else
-                        {
-                            buffer[(y*32*8 + dot)*4] = palette_colors[palette[0]*3];
-                            buffer[(y*32*8 + dot)*4 + 1] = palette_colors[palette[0]*3+1];
-                            buffer[(y*32*8 + dot)*4 + 2] = palette_colors[palette[0]*3+2];
-                            buffer[(y*32*8 + dot)*4 + 3] = 255;
-                        }
-                    }
+                    unsigned char palette_sel = sprite_dots[dot];
+                    buffer[(y*32*8 + dot)*4] = palette_colors[palette[palette_sel]*3];
+                    buffer[(y*32*8 + dot)*4 + 1] = palette_colors[palette[palette_sel]*3+1];
+                    buffer[(y*32*8 + dot)*4 + 2] = palette_colors[palette[palette_sel]*3+2];
+                    buffer[(y*32*8 + dot)*4 + 3] = 255;
                 }
+
             }
             break;
         case 241:
@@ -169,6 +183,7 @@ void PPU::do_cycle()
             scanline = -1;
             if(odd_frame)
                 dot = 1;
+            frame++;
         }
         
     }
@@ -231,7 +246,6 @@ unsigned char PPU::read_memory(unsigned short address)
         return name_tables[3][address - 0x2C00];
     else if(address >= 0x3F00)
     {
-        std::cout << "[PPU] READ FROM PALETTE AT 0x" << address << ": " << palette[address-0x3F00] << std::endl;
         return palette[address - 0x3F00];
     }
     else
@@ -260,7 +274,6 @@ void PPU::write_memory(unsigned short address, unsigned char val)
         name_tables[3][address - 0x2C00] = val;
     else if(address >= 0x3F00)
     {
-        std::cout << "[PPU] WROTE INTO PALETTE AT 0x" << address << ": " << (int) val << std::endl;
         palette[address - 0x3F00] = val;
     }
 
