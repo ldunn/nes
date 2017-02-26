@@ -19,6 +19,7 @@ class NESFile
 public:
     std::vector<char> prg_rom;
     std::vector<char> chr_rom;
+    unsigned char flags_six;
     NESFile(std::vector<char> &buf)
     {
         std::vector<char> header(buf.begin(), buf.begin()+16);
@@ -32,7 +33,7 @@ public:
         }
         unsigned char prg_rom_size = header[4]; // In 16kb units
         unsigned char chr_rom_size = header[5]; // In 8kb units
-        unsigned char flags_six = header[6];
+        flags_six = header[6];
         unsigned char flags_seven = header[7];
         unsigned char prg_ram_size = header[8]; // In 8kb units
         unsigned char flags_nine = header[9];
@@ -52,6 +53,7 @@ int main(int argc, char *argv[])
     PPU ppu = PPU();
     cpu.ppu = &ppu;
     ppu.cpu = &cpu;
+    ppu.mirroring = (nes.flags_six & 0x1);
     std::cout << "PRG ROM SIZE: " << nes.prg_rom.size() << std::endl;
     std::cout << "CHR ROM SIZE: " << nes.chr_rom.size() << std::endl;
     std::copy(nes.prg_rom.begin(), nes.prg_rom.end(), &(cpu.int_memory[0x10000-nes.prg_rom.size()]));
@@ -88,14 +90,14 @@ int main(int argc, char *argv[])
         start = curr;
         frame = ppu.frame;
         window.setTitle(std::to_string(fps));    
-        /* std::ofstream out("dump", std::ios::out | std::ios::binary);
+        std::ofstream out("dump", std::ios::out | std::ios::binary);
         unsigned char ppu_buffer[0x4000];
         ppu.dump_memory(ppu_buffer);
         out.write((char *)ppu_buffer, 0x4000);
         out.close();
         std::ofstream test_out("test_out", std::ios::out);
         test_out.write((char *)&(cpu.int_memory[0x6004]),0x2000);
-        test_out.close();*/
+        test_out.close();
         if(cpu.S > 0x1ff || cpu.S < 0x100)
         {
             std::cout << "STACK BLOWN" << std::endl;

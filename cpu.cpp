@@ -150,8 +150,7 @@ void CPU::do_cycle()
 {
     clocks_remain--;
     cycle++;
-    if(cycle % 100000 == 0)
-        std::cout << "Doing cycle: " << cycle << std::endl;
+
     if(NMI && clocks_remain < 0)
     {
         push(PC >> 8);
@@ -2132,7 +2131,7 @@ unsigned char CPU::read_memory(unsigned short address)
             //std::cout << "READING PPUSTATUS: 0x" << std::hex << (short)ret << std::dec << std::endl;
             ppu->PPUSTATUS &= ~(1 << 7); // Clear vblank on read
             ppu->NMI_occurred = false;
-            ppu->vram_addr = 0;
+            ppu->addr_scroll_latch = false;
             break;
         case 0x2004: // OAMDATA
             ret = ppu->OAMDATA; // For now this has no side-effects
@@ -2192,6 +2191,8 @@ void CPU::write_memory(unsigned short address, unsigned char value)
             //std::cout << "WRITING TO PPUCTRL: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
             ppu->PPUCTRL = value;
             ppu->NMI_output = std::bitset<8>(ppu->PPUCTRL)[7];
+            ppu->vram_addr_temp &= ~0xC00;
+            ppu->vram_addr_temp |= (value & 0x3) << 10;
             break;
         case 0x2001: // PPUMASK
             //std::cout << "WRITING TO PPUMASK: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
@@ -2208,7 +2209,7 @@ void CPU::write_memory(unsigned short address, unsigned char value)
         case 0x2005: // PPUSCROLL
             //std::cout << "WRITING TO PPUSCROLL: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
             // TODO IMPLEMENT PROPERLY
-            ppu->PPUSCROLL = value;
+            ppu->write_ppuscroll(value);
             break;
         case 0x2006: // PPUADDR
             //std::cout << "WRITING TO PPUADDR: 0x" << std::hex << (unsigned short)value << std::dec << std::endl;
